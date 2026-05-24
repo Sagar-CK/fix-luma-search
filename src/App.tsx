@@ -52,14 +52,14 @@ export function App() {
     searchQuery.trim().length > 0
       ? "Search Results"
       : selectedCategoryName
-        ? selectedCategoryName
+        ? `${selectedCategoryName} · ${location.label}`
         : `${location.label} Events`
 
   const mobilePageTitle =
     searchQuery.trim().length > 0
       ? "Search"
       : selectedCategoryName
-        ? selectedCategoryName
+        ? `${selectedCategoryName} · ${location.shortLabel}`
         : `${location.shortLabel} Events`
 
   function openSearch() {
