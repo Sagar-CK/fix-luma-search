@@ -32,7 +32,7 @@ export function CategoryFilter({
     <Select value={value} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger
         className={cn(
-          "h-9 min-w-[9.5rem] rounded-full border-[#ebeced] bg-white px-4",
+          "h-9 w-full rounded-full border-[#ebeced] bg-white px-4 sm:w-auto sm:min-w-[9.5rem]",
           "text-sm font-normal text-foreground shadow-[0_1px_2px_rgba(33,35,37,0.04)]",
           "hover:bg-white data-[placeholder]:text-foreground",
           className,

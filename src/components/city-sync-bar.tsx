@@ -35,13 +35,14 @@ export function CityToggle({ value, onChange, className }: CityToggleProps) {
             aria-selected={selected}
             onClick={() => onChange(location)}
             className={cn(
-              "rounded-full px-3.5 py-1 text-sm font-medium transition-colors",
+              "rounded-full px-3 py-1 text-sm font-medium transition-colors sm:px-3.5",
               selected
                 ? "bg-white text-foreground shadow-[0_1px_2px_rgba(33,35,37,0.06)]"
                 : "text-luma-secondary hover:text-foreground",
             )}
           >
-            {location.label}
+            <span className="sm:hidden">{location.shortLabel}</span>
+            <span className="hidden sm:inline">{location.label}</span>
           </button>
         )
       })}

@@ -52,8 +52,15 @@ export function App() {
     searchQuery.trim().length > 0
       ? "Search Results"
       : selectedCategoryName
-        ? `${selectedCategoryName} · ${location.label}`
+        ? selectedCategoryName
         : `${location.label} Events`
+
+  const mobilePageTitle =
+    searchQuery.trim().length > 0
+      ? "Search"
+      : selectedCategoryName
+        ? selectedCategoryName
+        : `${location.shortLabel} Events`
 
   function openSearch() {
     setSearchOpen(true)
@@ -66,11 +73,12 @@ export function App() {
   }
 
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-[820px] flex-col gap-8 px-4 py-6 sm:px-6">
+    <div className="mx-auto flex min-h-svh w-full max-w-[820px] flex-col gap-6 overflow-x-hidden px-4 py-5 sm:gap-8 sm:px-6 sm:py-6">
       <header className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-4">
-          <h1 className="min-w-0 text-xl font-semibold tracking-tight text-foreground">
-            {pageTitle}
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+            <span className="sm:hidden">{mobilePageTitle}</span>
+            <span className="hidden sm:inline">{pageTitle}</span>
           </h1>
 
           <button
@@ -92,7 +100,7 @@ export function App() {
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="flex flex-col items-start gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-2">
           <CityToggle value={location} onChange={setLocation} />
           <SyncCountdown
             locationKey={location.key}
@@ -120,13 +128,13 @@ export function App() {
         ) : null}
 
         {syncStatus?.lastError ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive sm:px-4 sm:py-3">
             Sync error: {syncStatus.lastError}
           </div>
         ) : null}
       </header>
 
-      <section className="flex flex-col gap-5">
+      <section className="flex flex-col gap-4 sm:gap-5">
         <CategoryFilter
           categories={categories}
           value={selectedSlug}
@@ -159,11 +167,11 @@ export function App() {
         )}
 
         {hasMore && upcomingEvents.length > 0 ? (
-          <div className="flex justify-center pb-8">
+          <div className="flex justify-center pb-4 sm:pb-8">
             <Button
               onClick={() => loadMore()}
               variant="outline"
-              className="border-[#ebeced] bg-white shadow-[0_1px_2px_rgba(33,35,37,0.04)]"
+              className="w-full border-[#ebeced] bg-white shadow-[0_1px_2px_rgba(33,35,37,0.04)] sm:w-auto"
             >
               Load more events
             </Button>
@@ -171,7 +179,7 @@ export function App() {
         ) : null}
       </section>
 
-      <footer className="pb-6 text-center text-sm text-luma-tertiary">
+      <footer className="pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center text-sm text-luma-tertiary">
         by{" "}
         <a
           href="https://sagarck.com"

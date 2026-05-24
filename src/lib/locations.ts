@@ -1,6 +1,7 @@
 export interface SearchLocation {
   key: "nyc" | "sf"
   label: string
+  shortLabel: string
   latitude: number
   longitude: number
   cronMinuteUtc: number
@@ -10,6 +11,7 @@ export const SEARCH_LOCATIONS: SearchLocation[] = [
   {
     key: "nyc",
     label: "New York",
+    shortLabel: "NYC",
     latitude: 40.7128,
     longitude: -74.006,
     cronMinuteUtc: 0,
@@ -17,6 +19,7 @@ export const SEARCH_LOCATIONS: SearchLocation[] = [
   {
     key: "sf",
     label: "San Francisco",
+    shortLabel: "SF",
     latitude: 37.7749,
     longitude: -122.4194,
     cronMinuteUtc: 30,
