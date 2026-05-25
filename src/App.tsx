@@ -95,7 +95,8 @@ export function App() {
   )
 
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-[820px] flex-col gap-6 overflow-x-hidden px-4 py-5 sm:gap-8 sm:px-6 sm:py-6">
+    <>
+      <div className="mx-auto flex min-h-svh w-full max-w-[820px] flex-col gap-6 overflow-x-hidden px-4 py-5 sm:gap-8 sm:px-6 sm:py-6">
       <header className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -191,9 +192,10 @@ export function App() {
           sagar
         </a>
       </footer>
+      </div>
 
       <EventAdvisorChat location={location} />
-    </div>
+    </>
   )
 }
 

@@ -2,6 +2,11 @@ import { useEffect, useState } from "react"
 
 const SCROLL_THRESHOLD_PX = 360
 const STORAGE_KEY = "luma-advisor-scroll-prompt-dismissed"
+const MOBILE_MAX_WIDTH_PX = 639
+
+function isMobileViewport() {
+  return window.matchMedia(`(max-width: ${MOBILE_MAX_WIDTH_PX}px)`).matches
+}
 
 export function useAdvisorScrollPrompt(advisorOpen: boolean) {
   const [visible, setVisible] = useState(false)
@@ -16,6 +21,14 @@ export function useAdvisorScrollPrompt(advisorOpen: boolean) {
     }
 
     function evaluateScroll() {
+      if (sessionStorage.getItem(STORAGE_KEY) === "1") {
+        return
+      }
+
+      if (isMobileViewport()) {
+        return
+      }
+
       if (window.scrollY >= SCROLL_THRESHOLD_PX) {
         setVisible(true)
       }
@@ -24,8 +37,14 @@ export function useAdvisorScrollPrompt(advisorOpen: boolean) {
     evaluateScroll()
     window.addEventListener("scroll", evaluateScroll, { passive: true })
 
+    const mediaQuery = window.matchMedia(
+      `(max-width: ${MOBILE_MAX_WIDTH_PX}px)`,
+    )
+    mediaQuery.addEventListener("change", evaluateScroll)
+
     return () => {
       window.removeEventListener("scroll", evaluateScroll)
+      mediaQuery.removeEventListener("change", evaluateScroll)
     }
   }, [advisorOpen])
 

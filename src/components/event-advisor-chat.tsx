@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useAction, useQuery } from "convex/react"
 import {
   IconLoader2,
+  IconSearch,
   IconSparkles,
   IconX,
 } from "@tabler/icons-react"
@@ -181,10 +182,6 @@ export function EventAdvisorChat({ location }: EventAdvisorChatProps) {
     setOpen(true)
   }
 
-  function handleTryFromPrompt() {
-    handleOpen()
-  }
-
   function handleInputModeChange(mode: AdvisorInputMode) {
     setInputMode(mode)
     setProfileHint(null)
@@ -205,9 +202,10 @@ export function EventAdvisorChat({ location }: EventAdvisorChatProps) {
 
       <div
         className={cn(
-          "fixed z-50 flex flex-col",
+          "fixed z-50 flex flex-col items-end",
           "right-4 bottom-[max(1rem,env(safe-area-inset-bottom))]",
           "sm:right-6 sm:bottom-6",
+          showScrollPrompt ? "gap-1" : undefined,
         )}
       >
         {open ? (
@@ -346,8 +344,8 @@ export function EventAdvisorChat({ location }: EventAdvisorChatProps) {
                       </>
                     ) : (
                       <>
-                        <IconSparkles className="size-4" />
-                        Find events!
+                        <IconSearch className="size-4" />
+                        find events
                       </>
                     )}
                   </Button>
@@ -378,26 +376,27 @@ export function EventAdvisorChat({ location }: EventAdvisorChatProps) {
         ) : null}
 
         {showScrollPrompt ? (
-          <AdvisorScrollPrompt
-            onTry={handleTryFromPrompt}
-            onDismiss={dismissScrollPrompt}
-          />
+          <AdvisorScrollPrompt onDismiss={dismissScrollPrompt} />
         ) : null}
 
         <button
           type="button"
           onClick={() => (open ? handleClose() : handleOpen())}
-          aria-label={open ? "Close event advisor" : "Open event advisor"}
+          aria-label={open ? "Close event advisor" : "Find events with advisor"}
           className={cn(
-            "ml-auto flex size-14 items-center justify-center rounded-full",
+            "ml-auto flex items-center justify-center rounded-full",
             "bg-foreground text-background shadow-[0_8px_24px_rgba(33,35,37,0.18)]",
-            "transition-transform hover:scale-[1.03] active:scale-[0.98]",
+            "transition-transform hover:bg-foreground/90 hover:scale-[1.03] active:scale-[0.98]",
+            open ? "size-8" : "h-8 gap-1.5 px-3.5",
           )}
         >
           {open ? (
-            <IconX className="size-6" stroke={1.75} />
+            <IconX className="size-4" stroke={1.75} />
           ) : (
-            <IconSparkles className="size-6" stroke={1.75} />
+            <>
+              <IconSearch className="size-3.5" stroke={1.75} />
+              <span className="text-xs font-medium">Find Events</span>
+            </>
           )}
         </button>
       </div>
