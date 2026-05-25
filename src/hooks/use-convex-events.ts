@@ -32,7 +32,7 @@ function toEventDisplay(event: Doc<"events">): EventDisplay {
 }
 
 export function useConvexEvents() {
-  const [selectedSlug, setSelectedSlug] = useState("all")
+  const [selectedSlugs, setSelectedSlugs] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [location, setLocationState] = useState<SearchLocation>(loadStoredLocation)
 
@@ -41,23 +41,31 @@ export function useConvexEvents() {
   })
 
   useEffect(() => {
-    if (selectedSlug === "all" || categories === undefined) {
+    if (selectedSlugs.length === 0 || categories === undefined) {
       return
     }
 
-    const isAvailable = categories.some((category) => category.slug === selectedSlug)
-    if (!isAvailable) {
-      setSelectedSlug("all")
+    const availableSlugs = new Set(categories.map((category) => category.slug))
+    const nextSlugs = selectedSlugs.filter((slug) => availableSlugs.has(slug))
+
+    if (nextSlugs.length !== selectedSlugs.length) {
+      setSelectedSlugs(nextSlugs)
     }
-  }, [categories, selectedSlug])
+  }, [categories, selectedSlugs])
+
   const syncInfo = useQuery(api.sync.status, { locationKey: location.key })
 
   const syncStatus = syncInfo?.syncStatus ?? null
-  const totalCount = syncInfo?.cachedEventCount ?? 0
   const nextSyncAt = syncInfo?.nextSyncAt
 
   const trimmedSearch = searchQuery.trim()
   const isSearching = trimmedSearch.length > 0
+  const categorySlugs = selectedSlugs.length > 0 ? selectedSlugs : undefined
+
+  const scopedEventCount = useQuery(api.events.count, {
+    locationKey: location.key,
+    categorySlugs,
+  })
 
   const searchResults = useQuery(
     api.events.search,
@@ -65,7 +73,7 @@ export function useConvexEvents() {
       ? {
           locationKey: location.key,
           query: trimmedSearch,
-          categorySlug: selectedSlug === "all" ? undefined : selectedSlug,
+          categorySlugs,
         }
       : "skip",
   )
@@ -78,7 +86,7 @@ export function useConvexEvents() {
     api.events.list,
     {
       locationKey: location.key,
-      categorySlug: selectedSlug === "all" ? undefined : selectedSlug,
+      categorySlugs,
     },
     { initialNumItems: 60 },
   )
@@ -104,19 +112,20 @@ export function useConvexEvents() {
     storeLocation(next)
     setLocationState(next)
     setSearchQuery("")
-    setSelectedSlug("all")
+    setSelectedSlugs([])
   }
 
   return {
     categories: categories ?? [],
-    selectedSlug,
-    setSelectedSlug,
+    selectedSlugs,
+    setSelectedSlugs,
     searchQuery,
     setSearchQuery,
     location,
     setLocation,
     events,
-    totalCount,
+    scopedEventCount: scopedEventCount ?? 0,
+    loadingScopedEventCount: scopedEventCount === undefined,
     loadingCategories: categories === undefined,
     loadingEvents,
     syncStatus,

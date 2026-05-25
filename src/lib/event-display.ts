@@ -21,6 +21,29 @@ export function getEventUrl(event: Pick<EventDisplay, "urlSlug">): string {
   return `https://luma.com/${event.urlSlug}`
 }
 
+export function toEventDisplay(
+  event: Omit<EventDisplay, "id"> & { lumaId: string },
+): EventDisplay {
+  return {
+    id: event.lumaId,
+    name: event.name,
+    coverUrl: event.coverUrl,
+    startAt: event.startAt,
+    endAt: event.endAt,
+    timezone: event.timezone,
+    urlSlug: event.urlSlug,
+    locationType: event.locationType,
+    venueName: event.venueName,
+    city: event.city,
+    cityState: event.cityState,
+    country: event.country,
+    calendarName: event.calendarName,
+    calendarAvatarUrl: event.calendarAvatarUrl,
+    hostNames: event.hostNames,
+    isSoldOut: event.isSoldOut,
+  }
+}
+
 export function formatEventTime(startAt: string, timezone: string): string {
   return new Intl.DateTimeFormat(undefined, {
     hour: "numeric",

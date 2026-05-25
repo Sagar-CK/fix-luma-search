@@ -2,6 +2,10 @@
 
 import { v } from "convex/values"
 
+import {
+  fetchLumaEventDescription,
+  mapWithConcurrency,
+} from "./lumaEventDescription"
 import { internal } from "./_generated/api"
 import { internalAction, type ActionCtx } from "./_generated/server"
 import {
@@ -13,6 +17,9 @@ import {
 const LUMA_BASE = "https://api2.luma.com"
 const PAGE_SIZE = 50
 const REQUEST_DELAY_MS = 200
+const DESCRIPTION_BATCH_SIZE = 40
+const DESCRIPTION_FETCH_CONCURRENCY = 6
+const DESCRIPTION_REQUEST_DELAY_MS = 120
 
 interface LumaCategoryResponse {
   entries: Array<{
@@ -201,6 +208,62 @@ async function fetchCategoryPage(
   )
 }
 
+async function syncEventDescriptions(
+  ctx: ActionCtx,
+  locationKey: "nyc" | "sf",
+  locationLabel: string,
+) {
+  let batch = 0
+  let totalFetched = 0
+  let totalPatched = 0
+
+  while (true) {
+    const pending = await ctx.runQuery(
+      internal.lumaSync.listEventsMissingDescriptions,
+      {
+        locationKey,
+        limit: DESCRIPTION_BATCH_SIZE,
+      },
+    )
+
+    if (pending.length === 0) {
+      break
+    }
+
+    batch += 1
+
+    const updates = await mapWithConcurrency(
+      pending,
+      DESCRIPTION_FETCH_CONCURRENCY,
+      async (event: { lumaId: string; urlSlug: string }) => {
+        await sleep(DESCRIPTION_REQUEST_DELAY_MS)
+        const description = await fetchLumaEventDescription(event.urlSlug)
+        return {
+          lumaId: event.lumaId,
+          description: description ?? "",
+        }
+      },
+    )
+
+    await ctx.runMutation(internal.lumaSync.patchEventDescriptions, {
+      updates,
+    })
+
+    const fetchedInBatch = updates.filter((update) => update.description.length > 0)
+      .length
+    totalFetched += fetchedInBatch
+    totalPatched += updates.length
+
+    console.log(
+      `[${locationLabel}] descriptions batch ${batch}: ${fetchedInBatch}/${pending.length} fetched`,
+    )
+  }
+
+  console.log(
+    `[${locationLabel}] descriptions complete: ${totalFetched}/${totalPatched} events with text`,
+  )
+}
+
 async function syncLocation(
   ctx: ActionCtx,
   locationKey: "nyc" | "sf",
@@ -262,6 +325,9 @@ async function syncLocation(
   await ctx.runMutation(internal.lumaSync.completeSync, {
     locationKey,
   })
+
+  console.log(`[${locationLabel}] syncing event descriptions...`)
+  await syncEventDescriptions(ctx, locationKey, locationLabel)
 }
 
 export const run = internalAction({

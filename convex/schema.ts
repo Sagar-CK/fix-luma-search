@@ -25,6 +25,7 @@ export default defineSchema({
     calendarAvatarUrl: v.optional(v.string()),
     hostNames: v.array(v.string()),
     isSoldOut: v.optional(v.boolean()),
+    description: v.optional(v.string()),
     categorySlug: v.string(),
     searchText: v.string(),
   })

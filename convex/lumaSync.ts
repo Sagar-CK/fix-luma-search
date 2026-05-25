@@ -2,7 +2,7 @@ import { v } from "convex/values"
 
 import { upsertEventByLumaId } from "./eventUpsert"
 import { isLocationKey } from "./locationKeys"
-import { internalMutation, type MutationCtx } from "./_generated/server"
+import { internalMutation, internalQuery, type MutationCtx } from "./_generated/server"
 
 const locationKeyValidator = v.string()
 
@@ -31,6 +31,7 @@ const eventValidator = v.object({
   isSoldOut: v.optional(v.boolean()),
   categorySlug: v.string(),
   searchText: v.string(),
+  description: v.optional(v.string()),
 })
 
 async function getOrCreateSyncStatus(
@@ -187,5 +188,65 @@ export const markSyncFailed = internalMutation({
       isSyncing: false,
       lastError: args.message,
     })
+  },
+})
+
+const descriptionTargetValidator = v.object({
+  lumaId: v.string(),
+  urlSlug: v.string(),
+})
+
+export const listEventsMissingDescriptions = internalQuery({
+  args: {
+    locationKey: locationKeyValidator,
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(descriptionTargetValidator),
+  handler: async (ctx, args) => {
+    const take = args.limit ?? 50
+    const events = await ctx.db
+      .query("events")
+      .withIndex("by_location_and_start", (q) =>
+        q.eq("locationKey", args.locationKey),
+      )
+      .collect()
+
+    return events
+      .filter((event) => event.description === undefined)
+      .slice(0, take)
+      .map((event) => ({
+        lumaId: event.lumaId,
+        urlSlug: event.urlSlug,
+      }))
+  },
+})
+
+export const patchEventDescriptions = internalMutation({
+  args: {
+    updates: v.array(
+      v.object({
+        lumaId: v.string(),
+        description: v.string(),
+      }),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    for (const update of args.updates) {
+      const event = await ctx.db
+        .query("events")
+        .withIndex("by_luma_id", (q) => q.eq("lumaId", update.lumaId))
+        .first()
+
+      if (!event) {
+        continue
+      }
+
+      await ctx.db.patch(event._id, {
+        description: update.description,
+      })
+    }
+
+    return null
   },
 })
