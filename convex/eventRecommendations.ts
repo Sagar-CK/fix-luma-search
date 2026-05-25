@@ -6,8 +6,6 @@ import { v } from "convex/values"
 import {
   extractResponseText,
   isTruncatedResponse,
-  logAdvisorModelRequest,
-  logAdvisorModelResponse,
   parseAdvisorModelPayload,
 } from "./advisorModelResponse"
 import { throwAdvisorError } from "./advisorErrors"
@@ -20,8 +18,11 @@ import { getLocationPreset, isLocationKey } from "./locationKeys"
 const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash"
 const MAX_USER_DESCRIPTION_LENGTH = 1200
 const MIN_USER_DESCRIPTION_LENGTH = 12
-const MAX_CANDIDATES_PER_DAY = 8
-const MAX_TOTAL_MODEL_CANDIDATES = 56
+// ~20 events/day × 7 days ≈ 140 candidates (~15–22k input tokens with desc).
+// Gemini Flash context is ~1M tokens, so this is well within limits.
+const MAX_CANDIDATES_PER_DAY = 20
+const MAX_TOTAL_MODEL_CANDIDATES = MAX_CANDIDATES_PER_DAY * 7
+const ADVISOR_DESCRIPTION_MAX_LENGTH = 200
 
 const WEEK_PLAN_JSON_SCHEMA = {
   type: "object",
@@ -201,6 +202,7 @@ async function buildWeekPlan(
     )
 
     const dayPlans = buildUpcomingDays(now, timezone)
+    const planDates = dayPlans.map((day) => day.date)
 
     if (candidates.length === 0) {
       return {
@@ -217,27 +219,14 @@ async function buildWeekPlan(
       }
     }
 
-    const modelPool = capCandidatesForModel(candidates, timezone)
+    const modelPool = capCandidatesForModel(candidates, timezone, planDates)
     const modelCandidates = modelPool.map((event) => toModelCandidate(event, timezone))
 
     const prompt = buildPrompt({
       cityLabel: location.label,
       userDescription,
-      dates: dayPlans.map((day) => day.date),
+      dates: planDates,
       candidates: modelCandidates,
-    })
-
-    logAdvisorModelRequest({
-      model: GEMINI_MODEL,
-      locationKey: args.locationKey,
-      cityLabel: location.label,
-      profileUrl,
-      userDescription,
-      dates: dayPlans.map((day) => day.date),
-      totalCandidateCount: candidates.length,
-      modelCandidateCount: modelCandidates.length,
-      candidates: modelCandidates,
-      prompt,
     })
 
     let parsed: {
@@ -271,7 +260,7 @@ async function buildWeekPlan(
         continue
       }
 
-      if (!eventStartsOnDate(event.startAt, event.timezone, pick.date)) {
+      if (!eventStartsOnDate(event.startAt, timezone, pick.date)) {
         continue
       }
 
@@ -282,7 +271,7 @@ async function buildWeekPlan(
       })
     }
 
-    fillMissingDays(dayPlans, candidates, usedIds, recommendationByDate)
+    fillMissingDays(dayPlans, candidates, usedIds, recommendationByDate, timezone)
 
     return {
       intro: parsed.intro?.trim() || "Here's a week of events picked for you.",
@@ -354,11 +343,6 @@ async function requestAdvisorPlan(
       console.warn(`[event-advisor] model call failed on attempt ${attempt + 1}`, error)
       throwAdvisorError("AI_UNAVAILABLE")
     }
-
-    logAdvisorModelResponse(response, {
-      attempt: attempt + 1,
-      model: GEMINI_MODEL,
-    })
 
     try {
       return parseResponsePayload(response)
@@ -450,6 +434,7 @@ function fillMissingDays(
   candidates: Array<{ lumaId: string; startAt: string; timezone: string }>,
   usedIds: Set<string>,
   recommendationByDate: Map<string, { lumaId: string; reason: string }>,
+  timezone: string,
 ) {
   for (const day of dayPlans) {
     if (recommendationByDate.has(day.date)) {
@@ -459,7 +444,7 @@ function fillMissingDays(
     const fallback = candidates.find(
       (event) =>
         !usedIds.has(event.lumaId) &&
-        eventStartsOnDate(event.startAt, event.timezone, day.date),
+        eventStartsOnDate(event.startAt, timezone, day.date),
     )
 
     if (!fallback) {
@@ -477,7 +462,9 @@ function fillMissingDays(
 function capCandidatesForModel(
   candidates: CandidateEvent[],
   timezone: string,
+  planDates: string[],
 ): CandidateEvent[] {
+  const planDateSet = new Set(planDates)
   const byDay = new Map<string, CandidateEvent[]>()
 
   for (const event of candidates) {
@@ -486,6 +473,10 @@ function capCandidatesForModel(
     }
 
     const day = formatDateKey(new Date(event.startAt), timezone)
+    if (!planDateSet.has(day)) {
+      continue
+    }
+
     const bucket = byDay.get(day) ?? []
     bucket.push(event)
     byDay.set(day, bucket)
@@ -493,15 +484,31 @@ function capCandidatesForModel(
 
   const capped: CandidateEvent[] = []
 
-  for (const events of byDay.values()) {
-    const sorted = [...events].sort((left, right) =>
-      left.startAt.localeCompare(right.startAt),
-    )
-    capped.push(...sorted.slice(0, MAX_CANDIDATES_PER_DAY))
+  for (const date of planDates) {
+    const events = byDay.get(date) ?? []
+    capped.push(...sampleRandomEvents(events, MAX_CANDIDATES_PER_DAY))
   }
 
-  capped.sort((left, right) => left.startAt.localeCompare(right.startAt))
   return capped.slice(0, MAX_TOTAL_MODEL_CANDIDATES)
+}
+
+function sampleRandomEvents(
+  events: CandidateEvent[],
+  limit: number,
+): CandidateEvent[] {
+  if (events.length <= limit) {
+    return events
+  }
+
+  const pool = [...events]
+  for (let index = pool.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1))
+    const current = pool[index]
+    pool[index] = pool[swapIndex]
+    pool[swapIndex] = current
+  }
+
+  return pool.slice(0, limit)
 }
 
 interface ModelCandidate {
@@ -530,7 +537,10 @@ function toModelCandidate(
   }
 
   if (event.description && event.description.trim().length > 0) {
-    candidate.desc = truncateDescription(event.description)
+    candidate.desc = truncateDescription(
+      event.description,
+      ADVISOR_DESCRIPTION_MAX_LENGTH,
+    )
   }
 
   return candidate

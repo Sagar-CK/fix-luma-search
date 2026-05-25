@@ -22,54 +22,6 @@ export function extractResponseText(
   return joined.length > 0 ? joined : undefined
 }
 
-export interface AdvisorModelRequestLog {
-  model: string
-  locationKey: string
-  cityLabel: string
-  profileUrl?: string
-  userDescription: string
-  dates: string[]
-  totalCandidateCount: number
-  modelCandidateCount: number
-  candidates: unknown[]
-  prompt: string
-}
-
-export function logAdvisorModelRequest(payload: AdvisorModelRequestLog): void {
-  console.log("[event-advisor] model request", {
-    model: payload.model,
-    locationKey: payload.locationKey,
-    cityLabel: payload.cityLabel,
-    profileUrl: payload.profileUrl ?? null,
-    userDescription: payload.userDescription,
-    dates: payload.dates,
-    totalCandidateCount: payload.totalCandidateCount,
-    modelCandidateCount: payload.modelCandidateCount,
-    candidates: payload.candidates,
-    promptLength: payload.prompt.length,
-    prompt: payload.prompt,
-  })
-}
-
-export function logAdvisorModelResponse(
-  response: GenerateContentResponse,
-  context: { attempt: number; model: string },
-): void {
-  const candidate = response.candidates?.[0]
-  const rawText = extractResponseText(response)
-
-  console.log("[event-advisor] model response", {
-    attempt: context.attempt,
-    model: context.model,
-    responseId: response.responseId,
-    modelVersion: response.modelVersion,
-    finishReason: candidate?.finishReason,
-    usageMetadata: response.usageMetadata,
-    rawText: rawText ?? null,
-    parts: candidate?.content?.parts ?? null,
-  })
-}
-
 export function parseAdvisorModelPayload(rawText: string): AdvisorModelPayload {
   const parsed = parseLooseJson(rawText)
 

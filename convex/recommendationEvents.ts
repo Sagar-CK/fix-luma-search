@@ -28,25 +28,21 @@ export const listUpcomingWeek = internalQuery({
     locationKey: v.string(),
     rangeStartIso: v.string(),
     rangeEndIso: v.string(),
-    limit: v.optional(v.number()),
   },
   returns: v.array(candidateValidator),
   handler: async (ctx, args) => {
-    const take = args.limit ?? 120
     const rows = await ctx.db
       .query("events")
       .withIndex("by_location_and_start", (q) =>
         q
           .eq("locationKey", args.locationKey)
-          .gte("startAt", args.rangeStartIso),
+          .gte("startAt", args.rangeStartIso)
+          .lte("startAt", args.rangeEndIso),
       )
-      .take(take)
+      .collect()
 
     return rows
-      .filter(
-        (event) =>
-          event.startAt <= args.rangeEndIso && event.endAt >= args.rangeStartIso,
-      )
+      .filter((event) => event.endAt >= args.rangeStartIso)
       .map((event) => ({
         lumaId: event.lumaId,
         name: event.name,

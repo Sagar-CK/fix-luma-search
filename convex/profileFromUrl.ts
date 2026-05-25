@@ -264,13 +264,6 @@ async function fetchLinkedInHtml(url: string): Promise<string | undefined> {
         if (hasLinkedInProfileData(html)) {
           return html
         }
-
-        console.warn("[profile-from-url] linkedin weak response", {
-          userAgent,
-          status: response.status,
-          htmlLength: html.length,
-          round: round + 1,
-        })
       } catch (error) {
         console.warn("[profile-from-url] linkedin fetch failed", userAgent, error)
       }
@@ -520,9 +513,6 @@ export async function buildUserDescriptionFromProfileUrl({
   }
 
   const pageHints = await scrapePageHints(normalized)
-  if (!pageHints) {
-    console.warn("[profile-from-url] scrape returned no hints", normalized)
-  }
 
   return await extractProfileDescription({
     ai,
