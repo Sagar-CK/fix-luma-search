@@ -345,7 +345,7 @@ export function EventAdvisorChat({ location }: EventAdvisorChatProps) {
                     ) : (
                       <>
                         <IconSearch className="size-4" />
-                        find events
+                        Find Events
                       </>
                     )}
                   </Button>

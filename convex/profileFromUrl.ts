@@ -22,6 +22,24 @@ const LINKEDIN_CRAWLER_USER_AGENTS = [
 const LINKEDIN_FETCH_ROUNDS = 3
 const LINKEDIN_FETCH_RETRY_DELAY_MS = 400
 
+const FXTWITTER_API_BASE = "https://api.fxtwitter.com"
+const X_RECENT_POSTS_LIMIT = 3
+
+const X_RESERVED_PATHS = new Set([
+  "explore",
+  "home",
+  "i",
+  "intent",
+  "messages",
+  "search",
+  "settings",
+])
+
+const USELESS_PAGE_HINT_PATTERNS = [
+  /javascript is not available/i,
+  /enable javascript/i,
+] as const
+
 const META_TAG_PATTERN =
   /<meta[^>]+(?:property|name)=["']([^"']+)["'][^>]+content=["']([^"']+)["'][^>]*>/gi
 
@@ -82,6 +100,143 @@ export function isLinkedInProfileUrl(url: string): boolean {
   } catch {
     return false
   }
+}
+
+export function isXProfileUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, "")
+    return host === "x.com" || host.endsWith(".x.com") || host === "twitter.com" || host.endsWith(".twitter.com")
+  } catch {
+    return false
+  }
+}
+
+function extractXScreenName(url: string): string | null {
+  try {
+    const segments = new URL(url).pathname.split("/").filter(Boolean)
+    if (segments.length === 0) {
+      return null
+    }
+
+    const handle = segments[0] ?? ""
+    if (!handle || X_RESERVED_PATHS.has(handle.toLowerCase())) {
+      return null
+    }
+
+    return handle
+  } catch {
+    return null
+  }
+}
+
+type FxTwitterUser = {
+  name?: string
+  screen_name?: string
+  description?: string
+  location?: string
+  website?: {
+    display_url?: string
+    url?: string
+  }
+}
+
+type FxTwitterStatus = {
+  text?: string
+}
+
+type FxTwitterApiResponse<T> = {
+  code?: number
+} & T
+
+function formatXProfileHints(
+  user: FxTwitterUser,
+  statuses: FxTwitterStatus[],
+): string {
+  const parts: string[] = []
+
+  if (user.name && user.screen_name) {
+    parts.push(`${user.name} (@${user.screen_name})`)
+  } else if (user.name) {
+    parts.push(user.name)
+  }
+
+  if (user.description) {
+    parts.push(`Bio: ${user.description}`)
+  }
+
+  if (user.location) {
+    parts.push(`Location: ${user.location}`)
+  }
+
+  const website = user.website?.display_url ?? user.website?.url
+  if (website) {
+    parts.push(`Website: ${website}`)
+  }
+
+  for (const status of statuses) {
+    const text = status.text?.replace(/\s+/g, " ").trim()
+    if (text) {
+      parts.push(`Recent post: ${text.slice(0, 280)}`)
+    }
+  }
+
+  return parts.join("\n").slice(0, 2500)
+}
+
+async function fetchFxTwitterJson<T>(
+  path: string,
+): Promise<FxTwitterApiResponse<T> | undefined> {
+  try {
+    const response = await fetch(`${FXTWITTER_API_BASE}${path}`, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent":
+          "Mozilla/5.0 (compatible; luma-search/1.0; +https://sagarck.com)",
+      },
+    })
+
+    if (!response.ok) {
+      return undefined
+    }
+
+    const data = (await response.json()) as FxTwitterApiResponse<T>
+    if (data.code !== 200) {
+      return undefined
+    }
+
+    return data
+  } catch (error) {
+    console.warn("[profile-from-url] fxtwitter fetch failed", path, error)
+    return undefined
+  }
+}
+
+async function scrapeXPageHints(url: string): Promise<string | undefined> {
+  const handle = extractXScreenName(url)
+  if (!handle) {
+    return undefined
+  }
+
+  const encodedHandle = encodeURIComponent(handle)
+  const [profileData, statusesData] = await Promise.all([
+    fetchFxTwitterJson<{ user?: FxTwitterUser }>(`/2/profile/${encodedHandle}`),
+    fetchFxTwitterJson<{ results?: FxTwitterStatus[] }>(
+      `/2/profile/${encodedHandle}/statuses?count=${X_RECENT_POSTS_LIMIT}`,
+    ),
+  ])
+
+  if (!profileData?.user) {
+    return undefined
+  }
+
+  const statuses =
+    statusesData?.results?.slice(0, X_RECENT_POSTS_LIMIT) ?? []
+  const hints = formatXProfileHints(profileData.user, statuses)
+  return hints.length > 0 ? hints : undefined
+}
+
+function isUselessPageHints(text: string): boolean {
+  return USELESS_PAGE_HINT_PATTERNS.some((pattern) => pattern.test(text))
 }
 
 function decodeHtml(value: string): string {
@@ -313,11 +468,16 @@ function extractDefaultPageHints(html: string): string | undefined {
   )
 
   if (parts.length > 0) {
-    return parts.join("\n").slice(0, 1500)
+    const combined = parts.join("\n").slice(0, 1500)
+    return isUselessPageHints(combined) ? undefined : combined
   }
 
   const bodyText = stripHtmlToText(html).slice(0, 1500)
-  return bodyText.length > 0 ? bodyText : undefined
+  if (bodyText.length === 0 || isUselessPageHints(bodyText)) {
+    return undefined
+  }
+
+  return bodyText
 }
 
 export async function scrapePageHints(url: string): Promise<string | undefined> {
@@ -328,6 +488,10 @@ export async function scrapePageHints(url: string): Promise<string | undefined> 
     }
 
     return extractLinkedInPageHints(html)
+  }
+
+  if (isXProfileUrl(url)) {
+    return await scrapeXPageHints(url)
   }
 
   const html = await fetchDefaultHtml(url)
@@ -466,7 +630,7 @@ export async function extractProfileDescription({
     }
   }
 
-  if (!isLinkedInProfileUrl(profileUrl)) {
+  if (!isLinkedInProfileUrl(profileUrl) && !isXProfileUrl(profileUrl)) {
     try {
       const fromUrl = await fetchProfileViaUrlContext({
         ai,
